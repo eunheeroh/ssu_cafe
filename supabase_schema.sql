@@ -85,3 +85,20 @@ INSERT INTO cafe_menu (
 -- 3. 확인용 조회 쿼리 (SELECT)
 -- ====================================================================
 SELECT * FROM cafe_menu ORDER BY created_at DESC;
+
+-- ====================================================================
+-- 4. RLS(Row Level Security) 정책 - 배포된 웹앱(anon 키)에서 읽기/쓰기 허용
+--    ※ RLS가 켜져 있고 정책이 없으면 웹앱에서 INSERT/SELECT가 모두 차단됩니다.
+--    ※ 실습용 설정입니다. 실제 서비스에서는 로그인 사용자 기준으로 제한하세요.
+-- ====================================================================
+ALTER TABLE cafe_menu ENABLE ROW LEVEL SECURITY;
+
+DROP POLICY IF EXISTS "anon select" ON cafe_menu;
+DROP POLICY IF EXISTS "anon insert" ON cafe_menu;
+DROP POLICY IF EXISTS "anon update" ON cafe_menu;
+DROP POLICY IF EXISTS "anon delete" ON cafe_menu;
+
+CREATE POLICY "anon select" ON cafe_menu FOR SELECT TO anon USING (true);
+CREATE POLICY "anon insert" ON cafe_menu FOR INSERT TO anon WITH CHECK (true);
+CREATE POLICY "anon update" ON cafe_menu FOR UPDATE TO anon USING (true) WITH CHECK (true);
+CREATE POLICY "anon delete" ON cafe_menu FOR DELETE TO anon USING (true);

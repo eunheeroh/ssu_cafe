@@ -4,7 +4,7 @@ import { OrderItem } from '../types';
 import { AlertCircle, CheckCircle, RotateCcw, Coffee, Sparkles } from 'lucide-react';
 
 interface OrderFormProps {
-  onAddOrder: (newOrder: OrderItem) => void;
+  onAddOrder: (newOrder: OrderItem) => Promise<void>;
 }
 
 /**
@@ -29,6 +29,7 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onAddOrder }) => {
   // 알림 및 성공 메시지 상태
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [confirmationMessage, setConfirmationMessage] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false); // DB 저장 중 여부
 
   // 2. 실시간 예상 금액 계산 로직
   // (음료 기본 가격 + 사이즈 추가금 + 옵션 추가금 합산) × 수량
@@ -77,9 +78,11 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onAddOrder }) => {
   };
 
   // 6. 주문하기 버튼 핸들러 (유효성 검사 및 주문 완료 처리)
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSubmitting) return;
     setErrorMessage(null);
+    setConfirmationMessage(null);
 
     // [유효성 검사 1] 이름 필수 검사
     if (!customerName.trim()) {
@@ -106,8 +109,6 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onAddOrder }) => {
     // 주문 확인 메시지 텍스트 조합:
     // 예) "홍길동님, 카페라떼 M사이즈 (샷 추가) 1잔, 총 5,000원 주문이 접수되었습니다!"
     const formattedMessage = `${customerName.trim()}님, ${selectedDrink.name} ${size}사이즈${optionsText} ${quantity}잔, 총 ${totalPrice.toLocaleString()}원 주문이 접수되었습니다!`;
-    
-    setConfirmationMessage(formattedMessage);
 
     // 주문 게시판 및 데이터 목록에 추가
     const newOrder: OrderItem = {
@@ -125,7 +126,18 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onAddOrder }) => {
       createdAt: new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }),
     };
 
-    onAddOrder(newOrder);
+    // Supabase에 저장 (성공했을 때만 확인 메시지 표시)
+    setIsSubmitting(true);
+    try {
+      await onAddOrder(newOrder);
+      setConfirmationMessage(formattedMessage);
+    } catch (err: any) {
+      console.error('[Supabase] 주문 저장 실패:', err);
+      setErrorMessage(`주문 저장에 실패했습니다: ${err.message}`);
+      return;
+    } finally {
+      setIsSubmitting(false);
+    }
 
     // 화면 부드럽게 확인 메시지 쪽으로 스크롤
     setTimeout(() => {
@@ -386,10 +398,11 @@ export const OrderForm: React.FC<OrderFormProps> = ({ onAddOrder }) => {
             {/* 주문하기 버튼: 갈색 배경(#6b4226), 흰색 글씨, hover시 약간 밝게 */}
             <button
               type="submit"
-              className="w-full py-3.5 px-4 bg-[#6b4226] hover:bg-[#835332] active:bg-[#59341c] text-white font-bold rounded-xl shadow-md transition-colors duration-200 flex items-center justify-center gap-2 text-base cursor-pointer"
+              disabled={isSubmitting}
+              className="disabled:opacity-60 disabled:cursor-wait w-full py-3.5 px-4 bg-[#6b4226] hover:bg-[#835332] active:bg-[#59341c] text-white font-bold rounded-xl shadow-md transition-colors duration-200 flex items-center justify-center gap-2 text-base cursor-pointer"
             >
               <Sparkles className="w-5 h-5" />
-              <span>주문하기</span>
+              <span>{isSubmitting ? '주문 저장 중...' : '주문하기'}</span>
             </button>
 
             {/* 다시 작성 버튼: 모든 입력과 금액 초기화 */}
